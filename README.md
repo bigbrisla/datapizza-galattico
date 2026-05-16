@@ -221,7 +221,7 @@ Se vuoi anche il punteggio:
 
 ### Modalita LLM
 
-La pipeline segue il pattern del post: metadata extraction e query transform sono delegati a un client OpenAI-compatible quando e presente una API key.
+La pipeline segue il pattern del post: metadata extraction e query transform sono delegati a un client OpenAI-compatible quando è presente una API key.
 
 Variabili supportate (opzionali):
 
