@@ -15,10 +15,10 @@ authors = [
 dependencies = [
   "click>=8.1.8",
   "pandas>=2.0.0",
+  "pypdf>=4.2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0.0",
 ]
-

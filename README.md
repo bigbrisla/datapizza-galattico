@@ -158,3 +158,116 @@ python src/evaluation.py --submission path/to/your_submission.csv
 
 Lo script mostrerà il **Jaccard similarity score** medio complessivo.
 
+## MVP (Punto 3) - Implementazione rapida
+
+La soluzione MVP segue il pattern metadata-first mostrato nel diagramma: i PDF dei menu vengono trasformati in ricette strutturate, salvate in uno store NoSQL-like in memoria. Il vectorDB non è usato come storage primario: molte domande sono query booleane su campi strutturabili, quindi ingredienti, tecniche, ristorante, pianeta e licenze funzionano meglio come metadati interrogabili.
+
+Le configurazioni di dominio non sono hard-coded nel codice. Il vocabolario dei pianeti viene scoperto da [`Dataset/knowledge_base/misc/Distanze.csv`](./Dataset/knowledge_base/misc/Distanze.csv); le query vengono costruite solo dai metadati estratti dalla knowledge base e dalle frasi presenti nelle domande.
+
+La pipeline è organizzata in moduli:
+
+- [`src/mvp_assistant/loading.py`](./src/mvp_assistant/loading.py): loading dei PDF dei menu
+- [`src/mvp_assistant/knowledge_config.py`](./src/mvp_assistant/knowledge_config.py): configurazione scoperta dalla knowledge base, ad esempio pianeti da `Distanze.csv`
+- [`src/mvp_assistant/parsing.py`](./src/mvp_assistant/parsing.py): parsing dei metadati di documento, come ristorante, pianeta e licenze
+- [`src/mvp_assistant/semantic_chunking.py`](./src/mvp_assistant/semantic_chunking.py): chunking semantico, un chunk per piatto
+- [`src/mvp_assistant/schemas.py`](./src/mvp_assistant/schemas.py): schema JSON per ricette, ingredienti e licenze
+- [`src/mvp_assistant/prompts.py`](./src/mvp_assistant/prompts.py): prompt di estrazione metadati e trasformazione query
+- [`src/mvp_assistant/metadata_extraction.py`](./src/mvp_assistant/metadata_extraction.py): estrazione metadati di ricetta via LLM, con fallback offline
+- [`src/mvp_assistant/nosql_store.py`](./src/mvp_assistant/nosql_store.py): store NoSQL-like in memoria, sostituibile con MongoDB
+- [`src/mvp_assistant/query_transform.py`](./src/mvp_assistant/query_transform.py): trasformazione domanda naturale in query sui metadati via LLM, con fallback offline
+- [`src/mvp_assistant/structured_retriever.py`](./src/mvp_assistant/structured_retriever.py): filtro AND/OR/NOT su metadati con fallback parziale
+- [`src/mvp_assistant/answer_generation.py`](./src/mvp_assistant/answer_generation.py): scrittura della risposta nel formato CSV richiesto
+- [`src/mvp_assistant/pipeline.py`](./src/mvp_assistant/pipeline.py): orchestrazione end-to-end
+- [`src/mvp_assistant/cli.py`](./src/mvp_assistant/cli.py): entrypoint CLI
+- [`src/mvp.py`](./src/mvp.py): wrapper di compatibilità
+
+Schema logico:
+
+```text
+DOC -> Loading -> Parsing -> Semantic Chunking -> Metadata Extraction -> NoSQL Store
+QUERY -> Extract Metadata -> NoSQL Query Transform -> Filter Docs -> CSV Answer
+```
+
+Rimangono disponibili anche i moduli lessicali iniziali:
+
+- [`src/mvp_assistant/index_builder.py`](./src/mvp_assistant/index_builder.py)
+- [`src/mvp_assistant/query_analyzer.py`](./src/mvp_assistant/query_analyzer.py)
+- [`src/mvp_assistant/retriever.py`](./src/mvp_assistant/retriever.py)
+
+### Setup (2 comandi)
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+```
+
+### Esecuzione standard
+
+```bash
+.venv/bin/python src/mvp.py
+```
+
+Questo comando sovrascrive sempre lo stesso file di output:
+
+```bash
+submissions/mvp_submission.csv
+```
+
+Se vuoi anche il punteggio:
+
+```bash
+.venv/bin/python src/evaluation.py --submission submissions/mvp_submission.csv
+```
+
+### Modalita LLM
+
+La pipeline segue il pattern del post: metadata extraction e query transform sono delegati a un client OpenAI-compatible quando e presente una API key.
+
+Variabili supportate (opzionali):
+
+```bash
+export OPENAI_API_KEY=...
+export OPENAI_MODEL=gpt-4o-mini
+export LLM_CALL_BUDGET=20
+```
+
+Sono supportati anche endpoint compatibili tramite:
+
+```bash
+export OPENAI_BASE_URL=...
+```
+
+Per Gemini:
+
+```bash
+export GEMINI_API_KEY=...
+export GEMINI_MODEL=gemini-2.5-flash
+export LLM_CALL_BUDGET=20
+```
+
+Senza API key, o con `LLM_CALL_BUDGET=0`, il sistema usa fallback offline deterministici.
+
+Esempio minimale con Gemini (senza comando lungo):
+
+```bash
+export GEMINI_API_KEY=...
+export GEMINI_MODEL=gemini-2.5-flash
+export LLM_CALL_BUDGET=300
+.venv/bin/python src/mvp.py
+```
+
+### Opzioni utili
+
+Per confrontare la baseline lessicale:
+
+```bash
+.venv/bin/python src/mvp.py --mode lexical --output submissions/lexical_submission.csv
+```
+
+Nel setup locale senza API key la pipeline metadata-first ottiene circa `8.4` di Jaccard similarity. Il valore atteso della soluzione completa dipende dalla qualita dell'LLM usato per metadata extraction e query transform.
+
+### Note su metadati/cache
+
+- I metadati estratti via LLM sono artefatti runtime e **non vanno versionati**.
+- La cache vive sotto `.cache/` (o nel path definito da `MVP_CACHE_DIR`).
+- `submissions/mvp_submission.csv` e l'unico CSV operativo: ogni run lo sovrascrive.

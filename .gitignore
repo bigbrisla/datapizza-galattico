@@ -45,5 +45,7 @@ htmlcov/
 
 # Project-specific
 terminals/
-
+.cache/
+submissions/*.csv
+!submissions/.gitkeep
 
