@@ -264,7 +264,7 @@ Per confrontare la baseline lessicale:
 .venv/bin/python src/mvp.py --mode lexical --output submissions/lexical_submission.csv
 ```
 
-Nel setup locale senza API key la pipeline metadata-first ottiene circa `8.4` di Jaccard similarity. Il valore atteso della soluzione completa dipende dalla qualita dell'LLM usato per metadata extraction e query transform.
+Nel setup locale senza API key la pipeline metadata-first ottiene circa `8.4` di Jaccard similarity. Il valore atteso della soluzione completa dipende dalla qualita dell'LLM usato per metadata extraction e query transform. Con l'API di Gemini 2.5 flash si arriva al `46.8` di Jaccard similarity.
 
 ### Note su metadati/cache
 
